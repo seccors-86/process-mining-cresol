@@ -1,0 +1,63 @@
+
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: cresol_process_db
+    restart: always
+    environment:
+      POSTGRES_USER: cresol_user
+      POSTGRES_PASSWORD: cresol_password
+      POSTGRES_DB: cresol_process_mining
+    ports:
+      - "5432:5432"
+    volumes:
+      - cresol_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "cresol_user"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cresol_net
+
+  backend:
+    build: ./backend
+    container_name: cresol_process_backend
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      - DATABASE_URL=postgresql://cresol_user:cresol_password@db:5432/cresol_process_mining
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - cresol_net
+
+  frontend:
+    build: ./frontend
+    container_name: cresol_process_frontend
+    restart: always
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - cresol_net
+
+networks:
+  cresol_net:
+    driver: bridge
+
+volumes:
+  cresol_pgdata:
