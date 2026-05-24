@@ -10,9 +10,45 @@ from powl import convert_to_bpmn
 from pm4py.objects.bpmn.layout import layouter
 from pm4py.objects.bpmn.obj import BPMN
 from agents.code_extraction import extract_resources_from_code
+from database import SessionLocal
+from models import Area, SystemModel, VariableModel
+
+def _save_metadata_to_db(resources: dict):
+    db = SessionLocal()
+    try:
+        pools_to_add = set()
+        systems_to_add = set()
+        variables_to_add = set()
+
+        for _, (pool, lane, annotations, systems, variables) in resources.items():
+            if pool and pool != "Cresol":
+                pools_to_add.add(pool)
+            if systems:
+                for sys in systems:
+                    systems_to_add.add(sys)
+            if variables:
+                for var in variables:
+                    variables_to_add.add(var)
+
+        for p in pools_to_add:
+            if not db.query(Area).filter(Area.name == p).first():
+                db.add(Area(name=p, description="Gerado via IA"))
+        for s in systems_to_add:
+            if not db.query(SystemModel).filter(SystemModel.name == s).first():
+                db.add(SystemModel(name=s, description="Gerado via IA"))
+        for v in variables_to_add:
+            if not db.query(VariableModel).filter(VariableModel.name == v).first():
+                db.add(VariableModel(name=v, description="Gerado via IA"))
+
+        db.commit()
+    except Exception as e:
+        print("Error saving metadata to DB:", e)
+        db.rollback()
+    finally:
+        db.close()
 
 
-def layout_powl_model(powl_model, python_code: str) -> Dict[str, Any]:
+def layout_powl_model(powl_model, python_code: str, current_nodes: List[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Converts a POWL model to BPMN, runs layouter, and converts to React Flow JSON.
     Aligns Y coordinates strictly to Swimlanes (pools and lanes) parsed from the code AST.
@@ -39,9 +75,9 @@ def layout_powl_model(powl_model, python_code: str) -> Dict[str, Any]:
         node_by_id[node_id] = node
         node_to_id[node] = node_id
 
-    # 4. Map task nodes to pools and lanes
-    # Key: node_id, Value: (pool, lane)
-    node_swimlanes = {}
+    # 4. Map task nodes to pools, lanes, and extra metadata
+    # Key: node_id, Value: (pool, lane, annotations, systems, variables)
+    node_metadata = {}
     
     for node_id, node in node_by_id.items():
         if isinstance(node, BPMN.Task):
@@ -50,13 +86,16 @@ def layout_powl_model(powl_model, python_code: str) -> Dict[str, Any]:
             matched = False
             for act_name, res in resources.items():
                 if act_name == task_name or act_name.strip() == task_name.strip():
-                    pool, lane = res
-                    node_swimlanes[node_id] = (pool or "Cresol", lane or "Geral")
+                    pool, lane, annotations, systems, variables = res
+                    node_metadata[node_id] = (pool or "Cresol", lane or "Geral", annotations, systems, variables)
                     matched = True
                     break
             if not matched:
-                # Default pool/lane
-                node_swimlanes[node_id] = ("Cresol", "Geral")
+                # Default metadata
+                node_metadata[node_id] = ("Cresol", "Geral", "", [], [])
+    
+    # Also save to Database in background
+    _save_metadata_to_db(resources)
 
     # 5. Propagate pool/lane to gateways and start/end events using BFS
     # Build adjacency list
@@ -71,26 +110,26 @@ def layout_powl_model(powl_model, python_code: str) -> Dict[str, Any]:
             adj[tgt_id].append(src_id)
 
     # Queue of nodes that already have a swimlane assigned
-    queue = list(node_swimlanes.keys())
+    queue = list(node_metadata.keys())
     visited = set(queue)
 
     while queue:
         curr = queue.pop(0)
-        curr_pool, curr_lane = node_swimlanes[curr]
+        curr_pool, curr_lane, _, _, _ = node_metadata[curr]
         for neighbor in adj[curr]:
             if neighbor not in visited:
-                node_swimlanes[neighbor] = (curr_pool, curr_lane)
+                node_metadata[neighbor] = (curr_pool, curr_lane, "", [], [])
                 visited.add(neighbor)
                 queue.append(neighbor)
 
     # If any nodes are still unassigned, set to default
     for nid in node_by_id:
-        if nid not in node_swimlanes:
-            node_swimlanes[nid] = ("Cresol", "Geral")
+        if nid not in node_metadata:
+            node_metadata[nid] = ("Cresol", "Geral", "", [], [])
 
     # 6. Organize pools and lanes to establish Y coordinates
     # Gather all unique (pool, lane) pairs
-    swimlanes_set = set(node_swimlanes.values())
+    swimlanes_set = set((p, l) for p, l, _, _, _ in node_metadata.values())
     
     # We want a stable order: pool first, then lanes
     # Sort pools and lanes
@@ -126,17 +165,43 @@ def layout_powl_model(powl_model, python_code: str) -> Dict[str, Any]:
         # We can add space between pools if needed
         current_y += 40
 
-    # 7. Convert nodes to React Flow format
-    # Offset coordinates so that everything starts from x=100
-    min_x = min([node.get_x() for node in bpmn_nodes]) if bpmn_nodes else 0
+    # 7. Convert nodes to React Flow format using Topological Ranking (Grid Layout)
+    ranks = {}
     
+    start_nodes = []
+    for node in bpmn_nodes:
+        if isinstance(node, BPMN.StartEvent):
+            start_nodes.append(node)
+            
+    if not start_nodes:
+        for node in bpmn_nodes:
+            in_edges = [f for f in bpmn_flows if f.get_target() == node]
+            if not in_edges:
+                start_nodes.append(node)
+                
+    for node in start_nodes:
+        ranks[node] = 0
+        
+    queue = [(n, 0) for n in start_nodes]
+    while queue:
+        curr, r = queue.pop(0)
+        out_flows = [f for f in bpmn_flows if f.get_source() == curr]
+        for flow in out_flows:
+            tgt = flow.get_target()
+            # Longest path for compact DAG layout, with loop protection
+            if ranks.get(tgt, -1) < r + 1 and r < 100:
+                ranks[tgt] = r + 1
+                queue.append((tgt, r + 1))
+                
+    for node in bpmn_nodes:
+        if node not in ranks:
+            ranks[node] = 0
+            
     react_flow_nodes = []
+    lane_nodes_by_x = {}
     
-    # Track node positions to resolve overlapping Y coordinates in same lane
-    lane_nodes_by_x = {} # Key: (pool, lane), Value: list of (x, node_id)
-
     for node_id, node in node_by_id.items():
-        pool, lane = node_swimlanes[node_id]
+        pool, lane, annotations, systems, variables = node_metadata[node_id]
         
         # Calculate React Flow type
         if isinstance(node, BPMN.StartEvent):
@@ -158,85 +223,87 @@ def layout_powl_model(powl_model, python_code: str) -> Dict[str, Any]:
             rf_type = "task"
             label = getattr(node, "get_name", lambda: "Activity")() or "Activity"
 
-        # Baseline position
-        x = (node.get_x() - min_x) * 1.5 + 100 # scale horizontally a bit for readability
+        # Check if we have an existing node to reuse data/id
+        existing_node = None
+        if current_nodes:
+            for en in current_nodes:
+                if en.get("type") == rf_type and en.get("data", {}).get("label") == label:
+                    # Found a match!
+                    existing_node = en
+                    break
+        
+        if existing_node:
+            node_id_final = existing_node["id"]
+        else:
+            node_id_final = node_id
+
+        # Grid Coordinates
+        x = ranks[node] * 220 + 80
         y = lane_positions[(pool, lane)]['y_center']
 
-        # Add to collision tracking
         key = (pool, lane)
         if key not in lane_nodes_by_x:
             lane_nodes_by_x[key] = []
-        lane_nodes_by_x[key].append((x, node_id, rf_type, label))
+        lane_nodes_by_x[key].append((x, node_id_final))
 
-    # Note: collision resolution is done after building react_flow_nodes (below)
-
-    # Actually build the React Flow nodes array
-    for node_id, node in node_by_id.items():
-        pool, lane = node_swimlanes[node_id]
+        # We prefer the newly generated annotations, systems, variables if they are provided,
+        # otherwise we fallback to the existing ones.
+        final_annotations = annotations if annotations else (existing_node.get("data", {}).get("annotations", "") if existing_node else "")
+        final_systems = systems if systems and len(systems) > 0 else (existing_node.get("data", {}).get("systems", []) if existing_node else [])
+        final_variables = variables if variables and len(variables) > 0 else (existing_node.get("data", {}).get("variables", []) if existing_node else [])
         
-        # Calculate React Flow type
-        if isinstance(node, BPMN.StartEvent):
-            rf_type = "start"
-            label = "Início"
-        elif isinstance(node, BPMN.EndEvent):
-            rf_type = "end"
-            label = "Fim"
-        elif isinstance(node, BPMN.ExclusiveGateway):
-            rf_type = "exclusiveGateway"
-            label = "XOR"
-        elif isinstance(node, BPMN.ParallelGateway):
-            rf_type = "parallelGateway"
-            label = "AND"
-        elif isinstance(node, BPMN.Task):
-            rf_type = "task"
-            label = node.get_name()
+        if existing_node:
+            react_flow_nodes.append({
+                'id': node_id_final,
+                'type': rf_type,
+                'position': existing_node.get("position", {'x': x, 'y': y}), # Keep user modified position
+                'data': {
+                    'label': label,
+                    'pool': pool,
+                    'lane': lane,
+                    'annotations': final_annotations,
+                    'systems': final_systems,
+                    'variables': final_variables,
+                    'executionType': existing_node.get("data", {}).get("executionType", "Manual"),
+                    'rank': ranks[node]
+                }
+            })
         else:
-            rf_type = "task"
-            label = getattr(node, "get_name", lambda: "Activity")() or "Activity"
+            react_flow_nodes.append({
+                'id': node_id_final,
+                'type': rf_type,
+                'position': {'x': x, 'y': y},
+                'data': {
+                    'label': label,
+                    'pool': pool,
+                    'lane': lane,
+                    'annotations': final_annotations,
+                    'systems': final_systems,
+                    'variables': final_variables,
+                    'executionType': 'Manual' if rf_type == 'task' else '',
+                    'rank': ranks[node]
+                }
+            })
+        
+        # Override the node_id in node_to_id so edges use the new ID
+        node_to_id[node] = node_id_final
 
-        x = (node.get_x() - min_x) * 1.5 + 100
-        y = lane_positions[(pool, lane)]['y_center']
-
-        react_flow_nodes.append({
-            'id': node_id,
-            'type': rf_type,
-            'position': {'x': x, 'y': y},
-            'data': {
-                'label': label,
-                'pool': pool,
-                'lane': lane,
-                'annotations': ''
-            }
-        })
-
-    # Adjust Y coordinates for collision groups we computed above
-    # Let's recreate node lists with correct coordinates
-    node_positions = {n['id']: n['position'] for n in react_flow_nodes}
-    
-    # We apply the spacing to react_flow_nodes list
+    # Collision resolution for nodes in the exact same spot
     for key, nodes_info in lane_nodes_by_x.items():
-        nodes_info.sort(key=lambda item: item[0])
-        groups = []
-        for x, nid, rft, lbl in nodes_info:
-            placed = False
-            for group in groups:
-                avg_x = sum([item[0] for item in group]) / len(group)
-                if abs(x - avg_x) < 90:
-                    group.append((x, nid, rft, lbl))
-                    placed = True
-                    break
-            if not placed:
-                groups.append([(x, nid, rft, lbl)])
-
-        for group in groups:
-            if len(group) > 1:
-                center_y = lane_positions[key]['y_center']
-                for idx, (x, nid, rft, lbl) in enumerate(group):
-                    offset = (idx - (len(group) - 1) / 2) * 55
+        x_groups = {}
+        for x, nid in nodes_info:
+            if x not in x_groups:
+                x_groups[x] = []
+            x_groups[x].append(nid)
+            
+        center_y = lane_positions[key]['y_center']
+        for x, nids in x_groups.items():
+            if len(nids) > 1:
+                for idx, nid in enumerate(nids):
+                    offset = (idx - (len(nids) - 1) / 2) * 80
                     for n in react_flow_nodes:
                         if n['id'] == nid:
                             n['position']['y'] = center_y + offset
-                            node_positions[nid] = n['position']
 
     # 8. Convert edges/flows to React Flow format
     react_flow_edges = []
@@ -251,8 +318,8 @@ def layout_powl_model(powl_model, python_code: str) -> Dict[str, Any]:
             edge_id = f"edge_{i}"
             
             # Apply BPMN 2.0 rule: Sequence flow cannot cross pools. Use messageFlow.
-            src_pool = node_swimlanes[src_id][0]
-            tgt_pool = node_swimlanes[tgt_id][0]
+            src_pool = node_metadata[src_id][0]
+            tgt_pool = node_metadata[tgt_id][0]
             
             is_message_flow = src_pool != tgt_pool
             edge_type = 'messageFlow' if is_message_flow else 'smoothstep'

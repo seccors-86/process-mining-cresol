@@ -128,7 +128,7 @@ def extract_resources_from_code(code):
     Extract gen.activity calls with their pool and lane.
 
     Returns:
-        dict: activity_name -> (pool, lane)
+        dict: activity_name -> (pool, lane, annotations, systems, variables)
     """
     tree = ast.parse(code)
     resources = {}
@@ -164,10 +164,20 @@ def extract_resources_from_code(code):
                 # Positional args (if any)
                 pool_val = None
                 lane_val = None
+                annotations_val = ""
+                systems_val = []
+                variables_val = []
+                
                 if len(call.args) >= 2:
                     pool_val = self.resolve_value(call.args[1])
                 if len(call.args) >= 3:
                     lane_val = self.resolve_value(call.args[2])
+                if len(call.args) >= 4:
+                    annotations_val = self.resolve_value(call.args[3]) or ""
+                if len(call.args) >= 5:
+                    systems_val = self.resolve_value(call.args[4]) or []
+                if len(call.args) >= 6:
+                    variables_val = self.resolve_value(call.args[5]) or []
 
                 # Override with keyword args if these are provided
                 for kw in call.keywords:
@@ -175,14 +185,22 @@ def extract_resources_from_code(code):
                         pool_val = self.resolve_value(kw.value)
                     elif kw.arg == "lane":
                         lane_val = self.resolve_value(kw.value)
+                    elif kw.arg == "annotations":
+                        annotations_val = self.resolve_value(kw.value) or ""
+                    elif kw.arg == "systems":
+                        systems_val = self.resolve_value(kw.value) or []
+                    elif kw.arg == "variables":
+                        variables_val = self.resolve_value(kw.value) or []
 
-                resources[activity_name] = (pool_val, lane_val)
+                resources[activity_name] = (pool_val, lane_val, annotations_val, systems_val, variables_val)
 
         def resolve_value(self, node):
             if isinstance(node, ast.Constant):
                 return node.value
             elif isinstance(node, ast.Name):
                 return variables.get(node.id, None)
+            elif isinstance(node, ast.List):
+                return [self.resolve_value(el) for el in node.elts]
             return None
 
     ActivityVisitor().visit(tree)

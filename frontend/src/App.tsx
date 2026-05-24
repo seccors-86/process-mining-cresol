@@ -3,10 +3,14 @@ import { useNodesState, useEdgesState, addEdge } from '@xyflow/react';
 import type { Node, Edge, Connection, OnConnect } from '@xyflow/react';
 import { ReactFlowProvider } from '@xyflow/react';
 
+import { getViewportForBounds, getNodesBounds } from '@xyflow/react';
+import { toPng } from 'html-to-image';
 import { DashboardHeader } from './components/DashboardHeader';
 import { ChatSidebar } from './components/ChatSidebar';
 import { ProcessCanvas } from './components/ProcessCanvas';
 import { NodeEditorModal } from './components/AnnotationModal';
+import { PropertiesPanel } from './components/PropertiesPanel';
+import { DataModal } from './components/DataModal';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -31,7 +35,7 @@ interface LaneBand {
   height: number;
 }
 
-function computeFixedSwimlanes(nodes: Node[]): LaneBand[] {
+function computeFixedSwimlanes(nodes: Node[], laneHeights: Record<string, number> = {}): LaneBand[] {
   // Collect unique (pool, lane) pairs
   const laneSet = new Map<string, { pool: string; lane: string }>();
   for (const node of nodes) {
@@ -60,15 +64,16 @@ function computeFixedSwimlanes(nodes: Node[]): LaneBand[] {
     if (lastPool && lastPool !== pool) {
       currentY += POOL_GAP; // extra gap between pools
     }
+    const height = laneHeights[`${pool}::${lane}`] || LANE_HEIGHT;
     bands.push({
       pool,
       lane,
       yMin: currentY,
-      yMax: currentY + LANE_HEIGHT,
-      yCenter: currentY + LANE_HEIGHT / 2,
-      height: LANE_HEIGHT,
+      yMax: currentY + height,
+      yCenter: currentY + height / 2,
+      height: height,
     });
-    currentY += LANE_HEIGHT;
+    currentY += height;
     lastPool = pool;
   }
 
@@ -124,10 +129,13 @@ export default function App() {
   const [conversationHistory, setConversationHistory] = useState<any[]>([]);
   const [powlCode, setPowlCode] = useState('');
   
-  // React Flow Diagram State
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  
+  // Layout spacing control
+  const [spacingMultiplier, setSpacingMultiplier] = useState<number>(220);
+  const [laneHeights, setLaneHeights] = useState<Record<string, number>>({});
 
   // Loading States
   const [agentStatus, setAgentStatus] = useState<'idle' | 'generating' | 'executing' | 'layouting' | 'error'>('idle');
@@ -138,11 +146,36 @@ export default function App() {
   // Node Editor Modal State
   const [isEditorModalOpen, setIsEditorModalOpen] = useState(false);
   const [selectedNodeForEdit, setSelectedNodeForEdit] = useState<Node | null>(null);
+  const [isDataModalOpen, setIsDataModalOpen] = useState(false);
 
   // Selection tracking
   const [selectedNodeIds, setSelectedNodeIds] = useState<Set<string>>(new Set());
   const [selectedEdgeIds, setSelectedEdgeIds] = useState<Set<string>>(new Set());
   const hasSelection = selectedNodeIds.size > 0 || selectedEdgeIds.size > 0;
+  
+  // The actively selected node for the properties panel
+  const activeSelectedNode = useMemo(() => {
+    return nodes.find(n => selectedNodeIds.has(n.id)) || null;
+  }, [nodes, selectedNodeIds]);
+
+  const handleUpdateNodeData = useCallback((nodeId: string, newData: any) => {
+    setNodes((nds) => {
+      const updated = nds.map((n) => {
+        if (n.id === nodeId) {
+          return { ...n, data: { ...newData } };
+        }
+        return n;
+      });
+      // Optionally re-snap if pool/lane changed, but it might jump while typing.
+      // So we only re-snap on modal save or specific actions to avoid UI jumping.
+      return updated;
+    });
+    
+    // Also update annotations dictionary for docx export if changed
+    if (newData.annotations && newData.label) {
+      setNotes((prev) => ({ ...prev, [newData.label]: newData.annotations }));
+    }
+  }, [setNodes]);
 
   useEffect(() => {
     const sn = nodes.filter((n: any) => n.selected);
@@ -151,9 +184,22 @@ export default function App() {
     setSelectedEdgeIds(new Set(se.map((e: any) => e.id)));
   }, [nodes, edges]);
 
+  // Handle spacing multiplier
+  useEffect(() => {
+    setNodes((nds) => nds.map((n) => {
+      // For legacy/manual nodes, calculate a rank based on their initial X if missing
+      const rank = typeof n.data?.rank === 'number' ? n.data.rank : (n.position.x - 80) / 220;
+      return {
+        ...n,
+        data: { ...n.data, rank }, // Save the rank so it scales consistently
+        position: { ...n.position, x: rank * spacingMultiplier + 80 }
+      };
+    }));
+  }, [spacingMultiplier, setNodes]);
+
   // ===== Swimlane computation =====
   // Recompute fixed-height swimlane bands whenever nodes change
-  const swimlaneBands = useMemo(() => computeFixedSwimlanes(nodes), [nodes]);
+  const swimlaneBands = useMemo(() => computeFixedSwimlanes(nodes, laneHeights), [nodes, laneHeights]);
 
   // Convert bands to the format ProcessCanvas expects
   const activeSwimlanes = useMemo(() => {
@@ -163,8 +209,22 @@ export default function App() {
       yMin: b.yMin,
       yMax: b.yMax,
       height: b.height,
+      id: `${b.pool}::${b.lane}`,
     }));
   }, [swimlaneBands]);
+
+  // Snap nodes whenever laneHeights change
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    if (Object.keys(laneHeights).length > 0 && nodes.length > 0) {
+      const bands = computeFixedSwimlanes(nodes, laneHeights);
+      setNodes((nds) => snapNodesToLanes(nds, bands));
+    }
+  }, [laneHeights]);
 
   // Collect available pools and lanes for the editor dropdown
   const availablePools = useMemo(() => {
@@ -182,16 +242,6 @@ export default function App() {
     }
     return Array.from(lanes).sort();
   }, [nodes]);
-
-  // ===== Snap nodes into lanes =====
-  // This function repositions all nodes so they sit inside their swimlanes
-  const reorganizeNodesIntoLanes = useCallback(() => {
-    setNodes((currentNodes) => {
-      const bands = computeFixedSwimlanes(currentNodes);
-      if (bands.length === 0) return currentNodes;
-      return snapNodesToLanes(currentNodes, bands);
-    });
-  }, [setNodes]);
 
   // Load Saved Diagrams
   const fetchDiagramsList = useCallback(async () => {
@@ -220,7 +270,14 @@ export default function App() {
           const loadedNodes = data.json_data.nodes || [];
           const loadedEdges = data.json_data.edges || [];
           // Snap loaded nodes into their swimlanes
-          const bands = computeFixedSwimlanes(loadedNodes);
+          const loadedLaneHeights: Record<string, number> = {};
+          if (data.json_data?.swimlanes) {
+            data.json_data.swimlanes.forEach((sl: any) => {
+              loadedLaneHeights[`${sl.pool}::${sl.lane}`] = sl.height || 160;
+            });
+          }
+          setLaneHeights(loadedLaneHeights);
+          const bands = computeFixedSwimlanes(loadedNodes, loadedLaneHeights);
           setNodes(snapNodesToLanes(loadedNodes, bands));
           setEdges(loadedEdges);
         }
@@ -267,33 +324,159 @@ export default function App() {
         alert("Falha ao salvar diagrama.");
       }
     } catch (e) {
-      alert("Erro ao conectar ao banco de dados.");
+      alert("Erro de conexão ao salvar.");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleExportWord = async () => {
+  const handleSaveAsDiagram = async () => {
+    setIsSaving(true);
+    try {
+      const payload = {
+        title: `${title} (Cópia)`, description, powl_code: powlCode, xml_data: '',
+        json_data: { nodes, edges, swimlanes: activeSwimlanes },
+        notes
+      };
+      const res = await fetch('http://localhost:8000/api/diagrams', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (res.ok) {
+        const saved = await res.json();
+        setDiagramId(saved.id);
+        setTitle(saved.title);
+        fetchDiagramsList();
+        alert("Processo salvo como cópia com sucesso!");
+      } else {
+        alert("Falha ao salvar diagrama como cópia.");
+      }
+    } catch (e) {
+      alert("Erro de conexão ao salvar como.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteDiagram = async () => {
+    if (!diagramId) return;
+    if (!window.confirm(`Tem certeza que deseja EXCLUIR DEFINITIVAMENTE o processo "${title}"?\n\nEssa ação não pode ser desfeita!`)) return;
+    
+    try {
+      const res = await fetch(`http://localhost:8000/api/diagrams/${diagramId}`, { method: 'DELETE' });
+      if (res.ok) {
+        handleNewDiagram();
+        fetchDiagramsList();
+        alert("Processo excluído com sucesso!");
+      } else {
+        alert("Falha ao excluir processo.");
+      }
+    } catch (e) {
+      alert("Erro de conexão ao excluir.");
+    }
+  };
+
+  // ===== Exports =====
+  const handleExportWord = async (simplified: boolean = false) => {
     setIsExporting(true);
     try {
-      const payload = { title, description, json_data: { nodes, edges, swimlanes: activeSwimlanes }, notes, powl_code: powlCode };
-      const res = await fetch('http://localhost:8000/api/document', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const payload = {
+        title, description, powl_code: powlCode,
+        json_data: { nodes, edges, swimlanes: activeSwimlanes },
+        notes
+      };
+      const endpoint = simplified ? 'export-word-simplified' : 'export-word';
+      const res = await fetch(`http://localhost:8000/api/${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
       if (res.ok) {
         const blob = await res.blob();
-        const downloadUrl = window.URL.createObjectURL(blob);
+        const url = window.URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = downloadUrl;
-        a.download = `documentacao_processo_${title.replace(/\s+/g, '_')}.docx`;
+        a.href = url;
+        a.download = `${title.replace(/\s+/g, '_')}${simplified ? '_Simplificado' : ''}.docx`;
         document.body.appendChild(a);
         a.click();
-        a.remove();
-      } else { alert("Falha ao gerar documentação Word."); }
-    } catch (e) { alert("Erro de conexão ao exportar."); }
-    finally { setIsExporting(false); }
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert("Falha ao gerar documentação.");
+      }
+    } catch (e) {
+      alert("Erro de conexão.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportImage = useCallback(() => {
+    const nodesBounds = getNodesBounds(nodes);
+    const viewport = getViewportForBounds(
+      nodesBounds,
+      nodesBounds.width,
+      nodesBounds.height,
+      0.5,
+      2,
+      0.1
+    );
+    
+    // We target the .react-flow__viewport element to get the nodes without the UI controls
+    const flowElement = document.querySelector('.react-flow__viewport') as HTMLElement;
+    if (!flowElement) return;
+
+    // Save current transform to restore later
+    const transform = flowElement.style.transform;
+    // Set to scale 1 so it's sharp
+    flowElement.style.transform = `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`;
+
+    toPng(flowElement, {
+      backgroundColor: '#f8fafc',
+      width: nodesBounds.width + 200, // add padding
+      height: nodesBounds.height + 200,
+      style: {
+        width: `${nodesBounds.width + 200}px`,
+        height: `${nodesBounds.height + 200}px`,
+        transform: `translate(${100 - nodesBounds.x}px, ${100 - nodesBounds.y}px) scale(1)`,
+      },
+    }).then((dataUrl) => {
+      const a = document.createElement('a');
+      a.setAttribute('download', `${title.replace(/\s+/g, '_')}.png`);
+      a.setAttribute('href', dataUrl);
+      a.click();
+    }).catch((err) => {
+      console.error("Export Error:", err);
+      alert("Erro ao exportar imagem.");
+    }).finally(() => {
+      // Restore transform
+      flowElement.style.transform = transform;
+    });
+  }, [nodes, title]);
+
+  const handleExportBPMN = async () => {
+    setIsExporting(true);
+    try {
+      const payload = {
+        title,
+        json_data: { nodes, edges, swimlanes: activeSwimlanes }
+      };
+      const res = await fetch('http://localhost:8000/api/export-bpmn', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${title.replace(/\s+/g, '_')}.bpmn`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert("Falha ao exportar BPMN.");
+      }
+    } catch (e) {
+      alert("Erro de conexão.");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   // Send message to LangGraph chatbot
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = async (text: string, mode: 'text'|'interview' = 'text', isAsIs: boolean = true, file?: File) => {
     const updatedMessages = [...messages, { role: 'user' as const, content: text }];
     setMessages(updatedMessages);
     setAgentStatus('generating');
@@ -303,13 +486,43 @@ export default function App() {
     if (!description) { currentDesc = text; setDescription(text); }
 
     try {
+      let finalPrompt = text;
+      
+      // Handle file upload if present
+      if (file) {
+        setAgentStatus('executing');
+        const formData = new FormData();
+        formData.append('file', file);
+        const uploadRes = await fetch('http://localhost:8000/api/upload-log', {
+          method: 'POST',
+          body: formData
+        });
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          finalPrompt += `\n\nResumo extraído do arquivo:\n${uploadData.summary}`;
+        } else {
+          setAgentStatus('error');
+          setErrorMessage("Falha ao ler o arquivo enviado.");
+          return;
+        }
+      }
+
+      setAgentStatus('generating');
       const timer1 = setTimeout(() => setAgentStatus('executing'), 2000);
       const timer2 = setTimeout(() => setAgentStatus('layouting'), 4500);
 
       const res = await fetch('http://localhost:8000/api/agents/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ process_description: currentDesc, messages: updatedMessages, conversation_history: conversationHistory })
+        body: JSON.stringify({ 
+          process_description: currentDesc, 
+          messages: updatedMessages, 
+          conversation_history: conversationHistory,
+          creation_mode: mode,
+          is_as_is: isAsIs,
+          current_nodes: nodes,
+          current_edges: edges
+        })
       });
 
       clearTimeout(timer1);
@@ -326,12 +539,12 @@ export default function App() {
           const aiNodes = data.diagram_data.nodes || [];
           const aiEdges = data.diagram_data.edges || [];
           // SNAP AI-generated nodes into fixed swimlane bands
-          const bands = computeFixedSwimlanes(aiNodes);
+          const bands = computeFixedSwimlanes(aiNodes, laneHeights);
           setNodes(snapNodesToLanes(aiNodes, bands));
           setEdges(aiEdges);
         }
 
-        setMessages((prev) => [...prev, { role: 'assistant', content: 'Processo modelado com sucesso! As atividades foram organizadas nas suas raias (piscinas BPMN). Duplo clique para editar qualquer elemento.' }]);
+        setMessages((prev) => [...prev, { role: 'assistant', content: data.reply || 'Processo modelado com sucesso! As atividades foram organizadas nas suas raias (piscinas BPMN). Duplo clique para editar qualquer elemento.' }]);
         setAgentStatus('idle');
       } else {
         const errDetails = await res.text();
@@ -353,40 +566,42 @@ export default function App() {
     [setEdges]
   );
 
-  const addNode = useCallback(
-    (type: string, label: string, pool = 'Cresol', lane = 'Geral') => {
-      const id = `manual_${nodeIdCounter++}`;
-      
-      // Calculate X position: place after rightmost existing node
-      const maxX = nodes.length > 0 ? Math.max(...nodes.map(n => n.position.x)) : 0;
-      const xPos = maxX + 280;
+  // ===== Toolbar Add Functions =====
+  const addNode = useCallback((type: string, label: string) => {
+    const yBands = computeFixedSwimlanes(nodes, laneHeights);
+    let targetY = 150;
+    let pool = 'Processo';
+    let lane = 'Geral';
+    if (yBands.length > 0) {
+      targetY = yBands[0].yCenter - 30;
+      pool = yBands[0].pool;
+      lane = yBands[0].lane;
+    }
 
-      // Calculate Y position: find the correct lane band
-      const allNodesWithNew: Node[] = [
-        ...nodes,
-        { id, type, position: { x: xPos, y: 0 }, data: { label, pool, lane, annotations: '' } } as Node,
-      ];
-      const bands = computeFixedSwimlanes(allNodesWithNew);
-      const band = bands.find(b => b.pool === pool && b.lane === lane);
-      const yPos = band ? band.yCenter - 30 : 100;
+    const newNode: Node = {
+      id: `manual_${nodeIdCounter++}`,
+      type,
+      position: { x: nodes.length * 200 + 50, y: targetY },
+      data: { 
+        label, 
+        pool, 
+        lane, 
+        rank: (nodes.length * 200 + 50 - 80) / 220, // Assign rank so slider works
+        executionType: 'Manual',
+        systems: [],
+        variables: []
+      },
+      selected: true,
+    };
+    
+    setNodes((nds) => [...nds, newNode]);
 
-      const newNode: Node = {
-        id,
-        type,
-        position: { x: xPos, y: yPos },
-        data: { label, pool, lane, annotations: '' },
-      };
-
-      setNodes((nds) => [...nds, newNode]);
-
-      // Open editor for the new node
-      setTimeout(() => {
-        setSelectedNodeForEdit(newNode);
-        setIsEditorModalOpen(true);
-      }, 100);
-    },
-    [setNodes, nodes]
-  );
+    // Open editor for the new node
+    setTimeout(() => {
+      setSelectedNodeForEdit(newNode);
+      setIsEditorModalOpen(true);
+    }, 100);
+  }, [nodes, setNodes]);
 
   const handleAddTask = useCallback(() => addNode('task', 'Nova Atividade'), [addNode]);
   const handleAddGatewayXOR = useCallback(() => addNode('exclusiveGateway', 'XOR'), [addNode]);
@@ -398,6 +613,26 @@ export default function App() {
     setNodes((nds) => nds.filter((n) => !n.selected));
     setEdges((eds) => eds.filter((e) => !e.selected));
   }, [setNodes, setEdges]);
+
+  const handleDuplicateSelected = useCallback(() => {
+    setNodes((nds) => {
+      const selectedNodes = nds.filter((n) => n.selected);
+      if (selectedNodes.length === 0) return nds;
+
+      const newNodes = selectedNodes.map((node) => {
+        const id = `manual_${nodeIdCounter++}`;
+        return {
+          ...node,
+          id,
+          position: { x: node.position.x, y: node.position.y + 80 },
+          selected: true,
+        };
+      });
+
+      // Deselect old nodes and append new ones
+      return [...nds.map(n => ({ ...n, selected: false })), ...newNodes];
+    });
+  }, [setNodes]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -432,7 +667,7 @@ export default function App() {
       });
 
       // Recompute lanes and snap ALL nodes into correct positions
-      const bands = computeFixedSwimlanes(updatedNodes);
+      const bands = computeFixedSwimlanes(updatedNodes, laneHeights);
       return snapNodesToLanes(updatedNodes, bands);
     });
 
@@ -445,7 +680,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#0b0f19] text-slate-100 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen w-screen bg-slate-50 text-slate-900 overflow-hidden font-sans">
       <DashboardHeader
         title={title}
         onTitleChange={setTitle}
@@ -454,9 +689,14 @@ export default function App() {
         onLoadDiagram={handleLoadDiagram}
         onNewDiagram={handleNewDiagram}
         onSave={handleSaveDiagram}
+        onSaveAs={handleSaveAsDiagram}
+        onDelete={handleDeleteDiagram}
         onExportWord={handleExportWord}
+        onExportImage={handleExportImage}
+        onExportBPMN={handleExportBPMN}
         isSaving={isSaving}
         isExporting={isExporting}
+        onOpenDataModal={() => setIsDataModalOpen(true)}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -468,12 +708,14 @@ export default function App() {
           onRestart={handleNewDiagram}
         />
 
-        <main className="flex-1 h-full relative bg-[#0b0f19]">
-          <ReactFlowProvider>
+        <main className="flex-1 h-full relative bg-slate-50 flex">
+          <div className="flex-1 relative">
+            <ReactFlowProvider>
             <ProcessCanvas
               nodes={nodes}
               edges={edges}
               swimlanes={activeSwimlanes}
+              setLaneHeights={setLaneHeights}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
@@ -484,11 +726,27 @@ export default function App() {
               onAddStart={handleAddStart}
               onAddEnd={handleAddEnd}
               onDeleteSelected={handleDeleteSelected}
+              onDuplicateSelected={handleDuplicateSelected}
               hasSelection={hasSelection}
+              spacingMultiplier={spacingMultiplier}
+              onSpacingChange={setSpacingMultiplier}
             />
-          </ReactFlowProvider>
+            </ReactFlowProvider>
+          </div>
+          
+          <PropertiesPanel
+            selectedNode={activeSelectedNode}
+            onClose={() => setNodes(nds => nds.map(n => ({ ...n, selected: false })))}
+            onUpdateData={handleUpdateNodeData}
+          />
         </main>
       </div>
+
+      <DataModal 
+        isOpen={isDataModalOpen} 
+        onClose={() => setIsDataModalOpen(false)} 
+        onUpdate={() => {}} 
+      />
 
       <NodeEditorModal
         isOpen={isEditorModalOpen}

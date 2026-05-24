@@ -67,8 +67,8 @@ def add_knowledge(resource_aware_discovery=False):
     else:
         prompt = (
             prompt
-            + " - activity(label, pool, lane) generates an activity. It takes 3 string arguments,"
-            " which are the label of the activity, the pool name, and the lane name."
+            + " - activity(label, pool, lane, annotations, systems, variables) generates an activity. It takes 3 positional arguments and 3 keyword arguments. "
+            "label is the short name of the activity. pool and lane are strings. annotations is a string for observations. systems is a list of strings. variables is a list of strings."
         )
 
     prompt = (
@@ -138,16 +138,42 @@ def add_knowledge_about_resources():
         "2. LANES represent distinct roles, departments, or actors WITHIN a pool (e.g., 'Atendimento', 'Gerente', 'Caixa', 'Backoffice' within the 'Cresol' pool).\n"
         "   - Rule: Different departments of the same organization MUST be modeled as lanes within one single pool.\n"
         "   - Rule: A lane belongs to only one pool.\n"
-        "3. NOMENCLATURE: Activity names must use a verb denoting action and a clear object (e.g., 'Avaliar Crédito', not 'Avaliação').\n"
-        "4. METADATA: Infer and assume relevant inputs, outputs, and business rules where possible, incorporating them into the description if the structure allows, to align with CBOK standards.\n"
+        "   - Rule: DO NOT create generic, artificial lanes like 'Processamento' or 'Sistema' unless they represent a specific system or department.\n"
+        "3. NOMENCLATURE: Activity names (label) must use a verb denoting action and a clear object (e.g., 'Avaliar Crédito', not 'Avaliação'). KEEP LABELS CONCISE.\n"
+        "4. METADATA: Use the `annotations` kwarg for business rules, observations or details. DO NOT put long descriptions in the activity label. Use the `systems` and `variables` kwargs to specify systems and inputs/outputs.\n"
+        "   - Example: activity('Analisar Risco', pool='Cresol', lane='Risco', annotations='Revisar as restrições no Serasa', systems=['Serasa'], variables=['CPF'])\n"
         "**Important** If you have managed to identify at least one pool, you cannot use 'None' for other pools.\n"
         "This is valid for lanes as well.\n"
         "IMPORTANT: DO NOT assign names to pools and lanes using variables, e.g., university_pool = 'University'. Always use string literals IN THE FUNCTION CALLS, e.g., pool='Cresol', lane='Caixa'.\n"
     )
 
 
-def add_process_description(process_description):
-    return "This is the process description: " + process_description
+def add_process_description(process_description, is_as_is=True, creation_mode='text', current_nodes=None):
+    desc = f"This is the process description/user input: {process_description}\n"
+    
+    if is_as_is:
+        desc += "Context: This is an AS-IS process map. You should map it exactly as it happens today, including inefficiencies, manual steps, or loops.\n"
+    else:
+        desc += "Context: This is a TO-BE process map. You should generate an optimized, ideal version of this process, eliminating bottlenecks and improving flow.\n"
+        
+    if current_nodes and len(current_nodes) > 0:
+        desc += f"Important: The user has already a mapped process in the canvas with {len(current_nodes)} nodes. "
+        desc += "Please preserve the structure and add/remove only what the user requested.\n"
+        
+    if creation_mode == 'interview':
+        desc += (
+            "INTERVIEW MODE: You are a Senior Process Mapper (BPM CBOK Specialist). The user is a business analyst, not a process expert. "
+            "Your job is to interview them to map the process. Ask deep, important questions. "
+            "For example: 'Que sistemas são usados nessa etapa?', 'Quais áreas da empresa estão envolvidas?', 'Existem regras de negócio específicas ou exceções?'. "
+            "Ask ONE clarifying question at a time. "
+            "Do NOT generate any Python code yet. Only output text. "
+            "When you feel you have understood the entire process, describe it back to the user and ask: 'Faltou alguma coisa ou posso gerar o fluxo?'. "
+            "ONLY output the Python code block when the user explicitly says 'Sim', 'Pode gerar' or approves the generation. "
+            "If the user hasn't approved yet, DO NOT output any code block. "
+            "If you output python code, do not ask more questions."
+        )
+        
+    return desc
 
 
 def negative_prompting():
@@ -217,20 +243,16 @@ def add_few_shots(resource_aware_discovery=False):
     return res + "\n"
 
 
-def create_model_generation_prompt(
-    process_description: str, resource_aware_discovery: bool
-) -> str:
-    prompt = add_role()
-    if resource_aware_discovery:
-        prompt = prompt + add_knowledge_about_resources()
-    prompt = prompt + add_knowledge(resource_aware_discovery)
-    prompt = prompt + negative_prompting()
-    prompt = prompt + add_few_shots(resource_aware_discovery)
-    prompt = prompt + code_generation()
-
-    if process_description is not None:
-        prompt = prompt + add_process_description(process_description)
-
+def create_model_generation_prompt(process_description, resource_aware_discovery=False, is_as_is=True, creation_mode='text', current_nodes=None):
+    prompt = (
+        add_role()
+        + add_knowledge(resource_aware_discovery=resource_aware_discovery)
+        + add_knowledge_about_resources()
+        + add_process_description(process_description, is_as_is, creation_mode, current_nodes)
+        + negative_prompting()
+        + add_few_shots(resource_aware_discovery)
+        + code_generation()
+    )
     return prompt
 
 

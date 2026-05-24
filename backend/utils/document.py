@@ -23,9 +23,10 @@ def set_cell_margins(cell, top=100, bottom=100, left=150, right=150):
         tcMar.append(node)
     tcPr.append(tcMar)
 
-def generate_process_document(diagram_title: str, description: str, react_flow_data: Dict[str, Any], notes: Dict[str, str], powl_code: str = "") -> io.BytesIO:
+def generate_process_document(diagram_title: str, description: str, react_flow_data: Dict[str, Any], notes: Dict[str, str], powl_code: str = "", simplified: bool = False) -> io.BytesIO:
     """
     Generates a premium styled Word (.docx) document summarizing the mapped process.
+    If simplified=True, it generates a shorter version focusing on Flow, Systems, and Areas.
     """
     doc = Document()
     
@@ -139,9 +140,51 @@ def generate_process_document(diagram_title: str, description: str, react_flow_d
     task_nodes = [n for n in nodes if n.get('type') == 'task']
     
     if task_nodes:
-        # Create table of tasks
-        task_table = doc.add_table(rows=1, cols=4)
-        task_table.autofit = False
+        if simplified:
+            # Documento Simplificado: Focar apenas no Fluxo, Sistemas e Variáveis
+            h3_run.text = "3. Relação de Sistemas e Documentos do Fluxo"
+            
+            task_table = doc.add_table(rows=1, cols=3)
+            task_table.autofit = False
+            widths = [Inches(2.5), Inches(2.0), Inches(2.0)]
+            
+            hdr_cells = task_table.rows[0].cells
+            hdr_cells[0].text = "Atividade"
+            hdr_cells[1].text = "Sistemas Envolvidos"
+            hdr_cells[2].text = "Variáveis / Docs"
+            
+            for i, cell in enumerate(hdr_cells):
+                cell.width = widths[i]
+                set_cell_background(cell, "0284c7")
+                set_cell_margins(cell, 120, 120, 150, 150)
+                for paragraph in cell.paragraphs:
+                    for run in paragraph.runs:
+                        run.font.bold = True
+                        run.font.color.rgb = RGBColor(0xff, 0xff, 0xff)
+            
+            for task in task_nodes:
+                label = task['data'].get('label', '')
+                sys_list = task['data'].get('systems', [])
+                if isinstance(sys_list, str):
+                    sys_list = [s.strip() for s in sys_list.split(',')]
+                var_list = task['data'].get('variables', [])
+                if isinstance(var_list, str):
+                    var_list = [s.strip() for s in var_list.split(',')]
+                
+                row_cells = task_table.add_row().cells
+                row_cells[0].text = label
+                row_cells[1].text = ", ".join(sys_list) if sys_list else "-"
+                row_cells[2].text = ", ".join(var_list) if var_list else "-"
+                
+                for i, cell in enumerate(row_cells):
+                    cell.width = widths[i]
+                    set_cell_margins(cell, 100, 100, 150, 150)
+                    set_cell_background(cell, "f8fafc")
+        else:
+            # Documento Completo
+            # Create table of tasks
+            task_table = doc.add_table(rows=1, cols=4)
+            task_table.autofit = False
         
         # Set widths roughly
         widths = [Inches(1.8), Inches(1.2), Inches(1.2), Inches(2.3)]
@@ -189,7 +232,7 @@ def generate_process_document(diagram_title: str, description: str, react_flow_d
     doc.add_paragraph().paragraph_format.space_after = Pt(12)
 
     # Section 4: Estrutura Lógica do Processo (POWL)
-    if powl_code:
+    if not simplified and powl_code:
         h4 = doc.add_paragraph()
         h4.paragraph_format.space_before = Pt(18)
         h4.paragraph_format.space_after = Pt(8)

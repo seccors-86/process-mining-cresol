@@ -24,6 +24,11 @@ class AgentState(TypedDict):
     iterations: int
     diagram_data: Optional[Dict[str, Any]]
     final_model: Optional[Any]
+    reply: Optional[str]
+    creation_mode: Optional[str]
+    is_as_is: Optional[bool]
+    current_nodes: Optional[List[Dict[str, Any]]]
+    current_edges: Optional[List[Dict[str, Any]]]
 
 
 def get_llm():
@@ -71,7 +76,10 @@ def generate_code_node(state: AgentState) -> Dict[str, Any]:
         # Initial model prompt
         prompt = create_model_generation_prompt(
             state["process_description"], 
-            resource_aware_discovery=True
+            resource_aware_discovery=True,
+            is_as_is=state.get("is_as_is", True),
+            creation_mode=state.get("creation_mode", "text"),
+            current_nodes=state.get("current_nodes")
         )
         conversation = [{"role": "user", "content": prompt}]
     
@@ -100,13 +108,31 @@ def generate_code_node(state: AgentState) -> Dict[str, Any]:
         extracted_error = None
     except Exception as e:
         code = None
-        extracted_error = f"Erro ao extrair bloco de código python da resposta: {str(e)}"
+        # Se for modo texto e não achou código, é um erro. 
+        # Se for entrevista, é normal não ter código nas primeiras interações.
+        if state.get("creation_mode") == "interview":
+            extracted_error = None
+        else:
+            extracted_error = f"Não foi encontrado bloco de código Python na resposta."
+
+    # Se for modo entrevista e já extraímos código, podemos resetar o modo para texto 
+    # ou apenas prosseguir.
 
     # Save to LLM conversation history
     conversation.append({"role": "assistant", "content": response_content})
+    
+    # Clean response for UI display (hide python code)
+    import re
+    clean_reply = re.sub(r"```[Pp]ython.*?```", "", response_content, flags=re.DOTALL)
+    # Also strip generic code blocks if they contain final_model
+    clean_reply = re.sub(r"```.*?final_model.*?```", "", clean_reply, flags=re.DOTALL).strip()
+    
+    if not clean_reply:
+        clean_reply = "Fluxo gerado com sucesso! (Código Python oculto)."
 
     return {
         "code": code,
+        "reply": clean_reply,
         "error": extracted_error,
         "conversation_history": conversation,
         "iterations": iterations + 1
@@ -119,7 +145,8 @@ def execute_code_node(state: AgentState) -> Dict[str, Any]:
     """
     code = state.get("code")
     if not code:
-        return {"error": state.get("error") or "Código não disponível para execução."}
+        # If we didn't generate code (e.g. interview mode), we don't execute and don't fail.
+        return {"error": state.get("error")}
 
     try:
         # Execute the python code and retrieve 'final_model'
@@ -147,7 +174,7 @@ def generate_layout_node(state: AgentState) -> Dict[str, Any]:
         return {"error": "Nenhum modelo de processo disponível para desenhar o layout."}
 
     try:
-        diagram_data = layout_powl_model(final_model, code)
+        diagram_data = layout_powl_model(final_model, code, state.get("current_nodes"))
         return {
             "diagram_data": diagram_data,
             "error": None
@@ -162,17 +189,17 @@ def generate_layout_node(state: AgentState) -> Dict[str, Any]:
 
 def should_continue(state: AgentState) -> str:
     """
-    Conditional routing function. If code execution failed, go back to code generator
-    unless we've reached max iterations.
+    Decides whether to execute the code or stop.
+    If there is no code (interview mode asking questions), we stop.
+    If there is an error but we haven't reached iteration limit, we retry.
     """
-    error = state.get("error")
-    iterations = state.get("iterations", 0)
-    
-    if error and iterations < 3:
-        print(f"[LangGraph] Execution error encountered on iteration {iterations}. Re-routing to generate_code. Error: {error}")
+    if not state.get("code") and not state.get("error"):
+        return "end" # Interview mode waiting for user reply
+    if state.get("error") and state.get("iterations") < 3:
         return "generate_code"
-    
-    return "generate_layout"
+    if state.get("code") and not state.get("error"):
+        return "generate_layout"
+    return "end"
 
 
 # Build the Graph
@@ -195,7 +222,8 @@ workflow.add_conditional_edges(
     should_continue,
     {
         "generate_code": "generate_code",
-        "generate_layout": "generate_layout"
+        "generate_layout": "generate_layout",
+        "end": END
     }
 )
 
@@ -205,17 +233,27 @@ workflow.add_edge("generate_layout", END)
 app_graph = workflow.compile()
 
 
-def run_agent_workflow(process_description: str, messages: List[Dict[str, str]] = None, conversation_history: List[Dict[str, str]] = None) -> Dict[str, Any]:
-    """
-    Main function to run the process mining agent workflow.
-    """
+def run_agent_workflow(
+    process_description: str, 
+    messages: List[Dict[str, str]] = None, 
+    conversation_history: List[Dict[str, str]] = None,
+    creation_mode: str = "text",
+    is_as_is: bool = True,
+    current_nodes: List[Dict[str, Any]] = None,
+    current_edges: List[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    
     initial_state = {
         "process_description": process_description,
         "messages": messages or [],
         "conversation_history": conversation_history or [],
+        "iterations": 0,
+        "creation_mode": creation_mode,
+        "is_as_is": is_as_is,
+        "current_nodes": current_nodes,
+        "current_edges": current_edges,
         "code": None,
         "error": None,
-        "iterations": 0,
         "diagram_data": None,
         "final_model": None
     }

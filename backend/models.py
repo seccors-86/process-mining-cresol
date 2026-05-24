@@ -26,6 +26,29 @@ class Area(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, index=True, nullable=False)
     description = Column(Text, nullable=True)
+    color = Column(String(50), nullable=True, default="#f8fafc") # Hex color or tailwind class
+
+
+class SystemModel(Base):
+    """
+    Represents corporate IT systems (e.g. SAP, ERP).
+    """
+    __tablename__ = "systems"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, index=True, nullable=False)
+    description = Column(Text, nullable=True)
+
+
+class VariableModel(Base):
+    """
+    Represents standard variables / inputs / outputs (e.g. CPF, CNPJ, Proposta).
+    """
+    __tablename__ = "variables"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, index=True, nullable=False)
+    description = Column(Text, nullable=True)
 
 
 class DiagramModel(Base):
