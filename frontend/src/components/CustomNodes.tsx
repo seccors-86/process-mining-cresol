@@ -11,11 +11,19 @@ export const StartNode = memo(({ data }: any) => {
     <div className="group relative flex flex-col items-center gap-1">
       <div className="relative flex items-center justify-center w-12 h-12 rounded-full border-2 border-emerald-500 bg-emerald-50 shadow-md text-emerald-600 font-bold text-xs hover:shadow-lg transition-shadow">
         <Handle 
-          type="target" position={Position.Left} id="t" 
+          type="target" position={Position.Left} id="t-left" 
           className="!w-2.5 !h-2.5 !bg-emerald-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity"
         />
         <Handle 
-          type="source" position={Position.Right} id="s" 
+          type="target" position={Position.Top} id="t-top" 
+          className="!w-2.5 !h-2.5 !bg-emerald-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity"
+        />
+        <Handle 
+          type="source" position={Position.Right} id="s-right" 
+          className="!w-2.5 !h-2.5 !bg-emerald-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity"
+        />
+        <Handle 
+          type="source" position={Position.Bottom} id="s-bottom" 
           className="!w-2.5 !h-2.5 !bg-emerald-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity"
         />
         <span className="select-none">Início</span>
@@ -45,11 +53,19 @@ export const EndNode = memo(({ data }: any) => {
     <div className="group relative flex flex-col items-center gap-1">
       <div className="relative flex items-center justify-center w-12 h-12 rounded-full border-4 border-rose-500 bg-rose-50 shadow-md text-rose-600 font-bold text-xs hover:shadow-lg transition-shadow">
         <Handle 
-          type="target" position={Position.Left} id="t" 
+          type="target" position={Position.Left} id="t-left" 
           className="!w-2.5 !h-2.5 !bg-rose-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity"
         />
         <Handle 
-          type="source" position={Position.Right} id="s" 
+          type="target" position={Position.Top} id="t-top" 
+          className="!w-2.5 !h-2.5 !bg-rose-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity"
+        />
+        <Handle 
+          type="source" position={Position.Right} id="s-right" 
+          className="!w-2.5 !h-2.5 !bg-rose-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity"
+        />
+        <Handle 
+          type="source" position={Position.Bottom} id="s-bottom" 
           className="!w-2.5 !h-2.5 !bg-rose-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity"
         />
         <span className="select-none">Fim</span>
@@ -81,12 +97,20 @@ export const GatewayNode = memo(({ data, type }: any) => {
     <div className="group relative flex flex-col items-center gap-1">
       <div className={`relative w-12 h-12 flex items-center justify-center rotate-45 border-2 rounded-md shadow-md ${colorClass} hover:scale-110 transition-transform`}>
         <Handle 
-          type="target" position={Position.Left} id="t" 
+          type="target" position={Position.Left} id="t-left" 
           className={`!-left-1.5 !w-2.5 !h-2.5 ${handleColor} !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity`}
         />
         <Handle 
-          type="source" position={Position.Right} id="s" 
+          type="target" position={Position.Top} id="t-top" 
+          className={`!-top-1.5 !w-2.5 !h-2.5 ${handleColor} !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity`}
+        />
+        <Handle 
+          type="source" position={Position.Right} id="s-right" 
           className={`!-right-1.5 !w-2.5 !h-2.5 ${handleColor} !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity`}
+        />
+        <Handle 
+          type="source" position={Position.Bottom} id="s-bottom" 
+          className={`!-bottom-1.5 !w-2.5 !h-2.5 ${handleColor} !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity`}
         />
         <div className="-rotate-45 font-extrabold text-lg select-none">{symbol}</div>
       </div>
@@ -117,12 +141,20 @@ export const TaskNode = memo(({ data, selected }: any) => {
         : 'border-slate-200 hover:border-slate-300 hover:shadow-md'
     }`}>
       <Handle 
-        type="target" position={Position.Left} id="t" 
+        type="target" position={Position.Left} id="t-left" 
         className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity !-left-1.5"
       />
       <Handle 
-        type="source" position={Position.Right} id="s" 
+        type="target" position={Position.Top} id="t-top" 
+        className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity !-top-1.5"
+      />
+      <Handle 
+        type="source" position={Position.Right} id="s-right" 
         className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity !-right-1.5"
+      />
+      <Handle 
+        type="source" position={Position.Bottom} id="s-bottom" 
+        className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white opacity-0 group-hover:opacity-100 transition-opacity !-bottom-1.5"
       />
 
       {/* Header: Execution Type Icon & Pool/Lane */}

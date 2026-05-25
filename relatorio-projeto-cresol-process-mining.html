@@ -1,0 +1,1121 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Relatório do Projeto | TTCD Process Mining</title>
+  <style>
+    :root {
+      --ink: #132033;
+      --muted: #536274;
+      --soft: #eef4f8;
+      --line: #d9e3ea;
+      --brand: #006747;
+      --brand-2: #8dc63f;
+      --accent: #0071bc;
+      --gold: #c99700;
+      --paper: #ffffff;
+      --shade: #f7fafc;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--ink);
+      background: #e8eef2;
+      font-size: 16px;
+      line-height: 1.45;
+    }
+
+    body {
+      margin: 0;
+    }
+
+    .page {
+      width: min(1120px, calc(100% - 32px));
+      margin: 32px auto;
+      background: var(--paper);
+      box-shadow: 0 18px 60px rgba(15, 23, 42, 0.16);
+    }
+
+    .cover {
+      min-height: 760px;
+      padding: 54px 58px;
+      color: #fff;
+      background:
+        linear-gradient(135deg, rgba(0, 103, 71, 0.95), rgba(0, 113, 188, 0.88)),
+        linear-gradient(45deg, rgba(141, 198, 63, 0.35), transparent 45%),
+        #006747;
+      display: grid;
+      align-content: space-between;
+      page-break-after: always;
+    }
+
+    .brand-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    .mark {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+
+    .mark-symbol {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      background: #fff;
+      color: var(--brand);
+      display: grid;
+      place-items: center;
+      font-size: 23px;
+      font-weight: 900;
+    }
+
+    .doc-meta {
+      text-align: right;
+      font-size: 0.86rem;
+      opacity: 0.9;
+    }
+
+    .cover h1 {
+      max-width: 850px;
+      margin: 96px 0 18px;
+      font-size: 4.5rem;
+      line-height: 0.98;
+      letter-spacing: 0;
+    }
+
+    .cover .subtitle {
+      max-width: 780px;
+      font-size: 1.35rem;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .cover-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-top: 72px;
+    }
+
+    .cover-card {
+      border: 1px solid rgba(255, 255, 255, 0.32);
+      background: rgba(255, 255, 255, 0.12);
+      padding: 18px;
+      border-radius: 8px;
+      min-height: 110px;
+    }
+
+    .cover-card strong {
+      display: block;
+      margin-bottom: 8px;
+      font-size: 0.78rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255, 255, 255, 0.76);
+    }
+
+    .cover-card span {
+      font-size: 1.08rem;
+      font-weight: 700;
+    }
+
+    main {
+      padding: 44px 58px 58px;
+    }
+
+    section {
+      margin: 0 0 42px;
+      break-inside: avoid;
+    }
+
+    .section-kicker {
+      display: inline-block;
+      margin-bottom: 8px;
+      color: var(--brand);
+      font-size: 0.76rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 2rem;
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      margin: 0 0 8px;
+      font-size: 1rem;
+      color: var(--ink);
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: var(--muted);
+    }
+
+    .lead {
+      max-width: 900px;
+      font-size: 1.08rem;
+      color: #35465a;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: 1.15fr 0.85fr;
+      gap: 24px;
+      align-items: stretch;
+      margin-bottom: 44px;
+    }
+
+    .summary-box {
+      border: 1px solid var(--line);
+      background: var(--shade);
+      border-radius: 8px;
+      padding: 24px;
+      break-inside: avoid;
+    }
+
+    .summary-box.highlight {
+      background: #f3fbf6;
+      border-color: #bfdfc8;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .metric {
+      border-left: 4px solid var(--brand-2);
+      background: #fff;
+      padding: 13px 14px;
+    }
+
+    .metric b {
+      display: block;
+      font-size: 1.25rem;
+      color: var(--brand);
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .feature-grid,
+    .value-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .feature,
+    .value-card,
+    .stack-card {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      background: #fff;
+      break-inside: avoid;
+    }
+
+    .feature h3,
+    .value-card h3,
+    .stack-card h3 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      width: 28px;
+      height: 28px;
+      flex: 0 0 auto;
+      border-radius: 7px;
+      color: #fff;
+      background: var(--accent);
+      display: inline-grid;
+      place-items: center;
+      font-size: 0.78rem;
+      font-weight: 900;
+    }
+
+    .feature:nth-child(2n) .badge,
+    .value-card:nth-child(2n) .badge {
+      background: var(--brand);
+    }
+
+    .feature:nth-child(3n) .badge,
+    .value-card:nth-child(3n) .badge {
+      background: var(--gold);
+    }
+
+    ul {
+      margin: 10px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+    }
+
+    li {
+      margin: 5px 0;
+    }
+
+    .stack {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .tag {
+      display: inline-block;
+      padding: 6px 9px;
+      border-radius: 999px;
+      background: var(--soft);
+      color: #334155;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .flow {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      break-inside: avoid;
+    }
+
+    .flow-row {
+      display: grid;
+      grid-template-columns: 210px 1fr;
+      min-height: 72px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .flow-row:last-child {
+      border-bottom: 0;
+    }
+
+    .flow-step {
+      padding: 17px 18px;
+      background: #f8fafc;
+      color: var(--brand);
+      font-weight: 800;
+    }
+
+    .flow-desc {
+      padding: 17px 18px;
+      color: var(--muted);
+    }
+
+    .callout {
+      margin-top: 22px;
+      padding: 18px 20px;
+      border-left: 5px solid var(--brand-2);
+      background: #fbfdf7;
+      color: #35465a;
+      break-inside: avoid;
+    }
+
+    .demo-grid {
+      display: grid;
+      grid-template-columns: 0.86fr 1.14fr;
+      gap: 16px;
+      align-items: stretch;
+    }
+
+    .demo-panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 18px;
+      break-inside: avoid;
+    }
+
+    .chat-sample {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .bubble {
+      padding: 11px 13px;
+      border-radius: 8px;
+      font-size: 0.92rem;
+    }
+
+    .bubble.user {
+      background: #eaf4ff;
+      border-left: 4px solid var(--accent);
+      color: #263b55;
+    }
+
+    .bubble.agent {
+      background: #f1f8ed;
+      border-left: 4px solid var(--brand-2);
+      color: #31462d;
+    }
+
+    .mini-diagram {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+    }
+
+    .tool-screenshot {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: #fff;
+      break-inside: avoid;
+    }
+
+    .tool-screenshot img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    .caption {
+      padding: 9px 12px;
+      border-top: 1px solid var(--line);
+      background: #f8fafc;
+      color: var(--muted);
+      font-size: 0.82rem;
+    }
+
+    .lane {
+      display: grid;
+      grid-template-columns: 128px 1fr;
+      min-height: 74px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .lane:last-child {
+      border-bottom: 0;
+    }
+
+    .lane-name {
+      display: grid;
+      place-items: center;
+      padding: 10px;
+      background: #f4f8fb;
+      color: var(--brand);
+      font-size: 0.84rem;
+      font-weight: 800;
+      text-align: center;
+      border-right: 1px solid var(--line);
+    }
+
+    .lane-flow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      padding: 12px;
+    }
+
+    .node {
+      min-width: 116px;
+      padding: 9px 10px;
+      border: 1px solid #b9d4e8;
+      border-radius: 8px;
+      background: #f8fcff;
+      color: #21384f;
+      font-size: 0.82rem;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .node.gateway {
+      min-width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      transform: rotate(45deg);
+      border-color: #d4a017;
+      background: #fff9e8;
+      color: #6f5200;
+    }
+
+    .node.gateway span {
+      transform: rotate(-45deg);
+      font-size: 0.72rem;
+    }
+
+    .arrow {
+      color: #8091a2;
+      font-weight: 800;
+    }
+
+    .deliverables {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .deliverable {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--shade);
+    }
+
+    .deliverable strong {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--brand);
+    }
+
+    .before-after {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .before-after .demo-panel {
+      background: #fbfcfd;
+    }
+
+    .toc {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin: 28px 0 42px;
+    }
+
+    .toc div {
+      padding: 14px 16px;
+      border-top: 4px solid var(--brand);
+      background: var(--shade);
+      font-weight: 800;
+    }
+
+    footer {
+      border-top: 1px solid var(--line);
+      padding-top: 18px;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+
+    @page {
+      size: A4;
+      margin: 14mm;
+    }
+
+    @media print {
+      html,
+      body {
+        background: #fff;
+      }
+
+      .page {
+        width: 100%;
+        margin: 0;
+        box-shadow: none;
+      }
+
+      .cover {
+        min-height: 267mm;
+        padding: 22mm 18mm;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+
+      .cover h1 {
+        font-size: 45pt;
+      }
+
+      .cover .subtitle {
+        font-size: 14pt;
+      }
+
+      main {
+        padding: 0;
+      }
+
+      section,
+      .summary,
+      .feature,
+      .value-card,
+      .stack-card,
+      .flow,
+      .summary-box {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+
+      h2 {
+        font-size: 22pt;
+        page-break-after: avoid;
+      }
+
+      h3 {
+        page-break-after: avoid;
+      }
+
+      p,
+      li,
+      .flow-desc {
+        font-size: 10.5pt;
+      }
+
+      .summary,
+      .feature-grid,
+      .value-grid,
+      .stack,
+      .toc,
+      .cover-grid,
+      .demo-grid,
+      .before-after,
+      .deliverables {
+        gap: 10px;
+      }
+
+      .feature,
+      .value-card,
+      .stack-card,
+      .summary-box {
+        padding: 13px;
+      }
+
+      .flow-row {
+        grid-template-columns: 46mm 1fr;
+      }
+
+      .lane {
+        grid-template-columns: 34mm 1fr;
+      }
+
+      .node {
+        min-width: 28mm;
+        font-size: 8.5pt;
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+    }
+
+    @media (max-width: 820px) {
+      .cover,
+      main {
+        padding: 32px 24px;
+      }
+
+      .cover h1 {
+        font-size: 3rem;
+      }
+
+      .summary,
+      .feature-grid,
+      .value-grid,
+      .stack,
+      .toc,
+      .cover-grid,
+      .demo-grid,
+      .before-after,
+      .deliverables {
+        grid-template-columns: 1fr;
+      }
+
+      .flow-row {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <article class="page">
+    <header class="cover">
+      <div class="brand-row">
+        <div class="mark">
+          <div class="mark-symbol">C</div>
+          <div>TTCD Process Mining</div>
+        </div>
+        <div class="doc-meta">
+          Relatório técnico e executivo<br>
+          Projeto TTCD Process Mining<br>
+          Maio de 2026
+        </div>
+      </div>
+
+      <div>
+        <h1>Plataforma de Process Mining e Modelagem BPMN com IA</h1>
+        <p class="subtitle">
+          Uma solução para descobrir, desenhar, documentar, versionar e exportar processos de negócio, combinando
+          agentes inteligentes, modelagem POWL, canvas BPMN e gestão de conhecimento operacional.
+        </p>
+
+        <div class="cover-grid">
+          <div class="cover-card">
+            <strong>Produto</strong>
+            <span>Editor inteligente de processos</span>
+          </div>
+          <div class="cover-card">
+            <strong>Foco</strong>
+            <span>AS-IS, TO-BE, BPMN e documentação</span>
+          </div>
+          <div class="cover-card">
+            <strong>Entrega</strong>
+            <span>Aplicação web full stack dockerizada</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="summary">
+        <div class="summary-box highlight">
+          <span class="section-kicker">Visão Geral</span>
+          <h2>O que o projeto entrega</h2>
+          <p class="lead">
+            O TTCD Process Mining é uma aplicação web para transformar descrições, entrevistas e históricos de processo
+            em diagramas editáveis. O sistema permite que analistas criem fluxos com auxílio de IA, ajustem o desenho no
+            canvas, registrem metadados de áreas, sistemas e variáveis, salvem versões e exportem artefatos prontos para
+            governança, documentação e interoperabilidade.
+          </p>
+          <div class="metrics">
+            <div class="metric">
+              <b>IA + BPMN</b>
+              <span>Geração assistida e edição visual</span>
+            </div>
+            <div class="metric">
+              <b>POWL</b>
+              <span>Modelo lógico executável do processo</span>
+            </div>
+            <div class="metric">
+              <b>DOCX/PNG/BPMN</b>
+              <span>Exportações para uso corporativo</span>
+            </div>
+            <div class="metric">
+              <b>Docker</b>
+              <span>Ambiente com frontend, backend e banco</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="summary-box">
+          <span class="section-kicker">Índice</span>
+          <h2>Conteúdo</h2>
+          <div class="toc">
+            <div>Funcionalidades</div>
+            <div>Exemplo</div>
+            <div>Stack</div>
+            <div>Como gera Valor</div>
+          </div>
+          <p>
+            Este documento foi preparado como uma peça de apresentação e também como material imprimível em PDF. O layout
+            usa CSS embutido, páginas A4, controle de quebras e cores configuradas para impressão.
+          </p>
+        </div>
+      </section>
+
+      <section>
+        <span class="section-kicker">Funcionalidades</span>
+        <h2>Capacidades principais da plataforma</h2>
+        <p class="lead">
+          As funcionalidades foram identificadas a partir do frontend, endpoints do backend e utilitários de geração de
+          documentos, layout e exportação BPMN do projeto.
+        </p>
+
+        <div class="feature-grid">
+          <div class="feature">
+            <h3><span class="badge">1</span>Criação assistida por IA</h3>
+            <p>
+              O usuário descreve o processo, escolhe entre fluxo atual AS-IS ou futuro TO-BE e recebe um modelo inicial
+              gerado por agente. Também existe modo de entrevista guiada, no qual a IA coleta detalhes antes de montar o fluxo.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3><span class="badge">2</span>Importação de históricos</h3>
+            <p>
+              O backend aceita arquivos CSV, XLS e XLSX, identifica colunas prováveis de caso e atividade e retorna um
+              resumo de etapas encontradas para enriquecer o prompt do agente.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3><span class="badge">3</span>Modelagem lógica em POWL</h3>
+            <p>
+              O agente gera código Python com modelo POWL, executa esse código em fluxo controlado e tenta autocorrigir
+              falhas de execução em até três iterações antes de entregar o layout.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3><span class="badge">4</span>Canvas visual com BPMN</h3>
+            <p>
+              O frontend usa React Flow para exibir atividades, início, fim, gateways exclusivos e paralelos, conexões
+              animadas, seleção, arraste, duplicação e exclusão de elementos.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3><span class="badge">5</span>Swimlanes e responsabilidades</h3>
+            <p>
+              A aplicação organiza nós em piscinas e raias, calcula bandas horizontais, reposiciona atividades por área e
+              permite ajustar a altura das raias para melhorar leitura e governança visual.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3><span class="badge">6</span>Edição e enriquecimento de atividades</h3>
+            <p>
+              Cada nó pode receber nome, pool, lane e anotações. O painel de propriedades complementa a edição com metadados
+              operacionais, apoiando documentação, regras de negócio e padronização.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3><span class="badge">7</span>Cadastros corporativos</h3>
+            <p>
+              A plataforma mantém cadastros de áreas, sistemas e variáveis/documentos. As áreas também podem ter cores,
+              usadas para contextualizar visualmente as raias no canvas.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3><span class="badge">8</span>Persistência e reuso</h3>
+            <p>
+              Diagramas são salvos com título, descrição, código POWL, XML, JSON do React Flow, swimlanes e notas. O usuário
+              pode abrir, atualizar, salvar como cópia e excluir processos.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3><span class="badge">9</span>Exportações de entrega</h3>
+            <p>
+              O sistema exporta imagem PNG, arquivo BPMN 2.0 e documentação Word em versão completa ou simplificada,
+              criando artefatos utilizáveis em apresentações, auditorias e melhoria contínua.
+            </p>
+          </div>
+
+          <div class="feature">
+            <h3><span class="badge">10</span>API operacional</h3>
+            <p>
+              O backend oferece endpoints REST para diagramas, cadastros, chat com agente, upload de logs e exportações,
+              tornando a solução extensível para integrações futuras.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <span class="section-kicker">Fluxo de Uso</span>
+        <h2>Como a aplicação trabalha</h2>
+        <div class="flow">
+          <div class="flow-row">
+            <div class="flow-step">1. Entrada</div>
+            <div class="flow-desc">O analista descreve o processo, inicia uma entrevista guiada ou envia uma planilha/log de eventos.</div>
+          </div>
+          <div class="flow-row">
+            <div class="flow-step">2. Raciocínio</div>
+            <div class="flow-desc">O LangGraph aciona o LLM, cria ou ajusta código POWL e trata erros de execução com autocorreção.</div>
+          </div>
+          <div class="flow-row">
+            <div class="flow-step">3. Desenho</div>
+            <div class="flow-desc">O modelo lógico é convertido para estrutura de nós, arestas e swimlanes compatível com React Flow.</div>
+          </div>
+          <div class="flow-row">
+            <div class="flow-step">4. Refinamento</div>
+            <div class="flow-desc">O usuário ajusta atividades, conexões, responsabilidades, anotações, sistemas e variáveis.</div>
+          </div>
+          <div class="flow-row">
+            <div class="flow-step">5. Entrega</div>
+            <div class="flow-desc">O processo é salvo e exportado como BPMN, imagem ou documentação Word completa/simplificada.</div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <span class="section-kicker">Exemplo prático</span>
+        <h2>Da entrevista ao TO-BE em um ciclo rápido</h2>
+        <p class="lead">
+          Abaixo está um exemplo aplicado ao mapeamento da esteira AS-IS de crédito PJ, a partir de uma transcrição realista
+          de reunião entre Projetos/Estratégia, Gerência de Agência e Análise de Crédito. O objetivo é mostrar como uma
+          conversa longa é sintetizada em processo, desenho, documentação e proposta de melhoria.
+        </p>
+
+        <div class="demo-grid">
+          <div class="demo-panel">
+            <h3>1. Entrevista recebida</h3>
+            <p>Entrada resumida a partir de uma transcrição de 21 minutos sobre a esteira AS-IS de crédito PJ:</p>
+            <div class="chat-sample">
+              <div class="bubble user">
+                Após o projeto Propulsão 90, a originação cresceu, mas a aprovação não acompanhou. A operação nasce na agência, por demanda do associado ou oferta comercial, e começa no sistema com o cadastro da proposta.
+              </div>
+              <div class="bubble agent">
+                Quais atores participam, quais sistemas são usados, quais decisões encerram o processo e onde existem loops de retrabalho?
+              </div>
+              <div class="bubble user">
+                A agência usa Fluidnow, Serasa e SCR/Bacen. A análise confere lastro, roda rating, aplica alçadas e pode enviar ao Comitê. Há exigências documentais, condicionantes, formalização de CCB e liberação financeira em lote às 16h.
+              </div>
+            </div>
+          </div>
+
+          <div class="demo-panel">
+            <h3>2. Desenho AS-IS desenvolvido</h3>
+            <p>Print real do diagrama criado no TTCD Process Mining a partir da transcrição sintetizada:</p>
+            <div class="tool-screenshot" aria-label="Print real do diagrama AS-IS criado no TTCD Process Mining">
+              <img src="relatorio-assets/ttcd-as-is-diagrama.png" alt="Diagrama AS-IS de solicitação de crédito PJ criado no TTCD Process Mining">
+              <div class="caption">Figura 1 — Diagrama AS-IS gerado e renderizado na ferramenta TTCD Process Mining.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="deliverables">
+          <div class="deliverable">
+            <strong>Documento entregue</strong>
+            Atividades, responsáveis, anexos, sistemas, regras de alçada, loops de exigência e eventos de encerramento.
+          </div>
+          <div class="deliverable">
+            <strong>Arquivo BPMN</strong>
+            Modelo exportável para análise, governança e discussão com as áreas de Agência, Crédito, Comitê e Backoffice.
+          </div>
+          <div class="deliverable">
+            <strong>Imagem executiva</strong>
+            Print do fluxo para validação em reunião, destacando gargalos de documento, bureau, comitê e formalização.
+          </div>
+        </div>
+
+        <div class="before-after">
+          <div class="demo-panel">
+            <h3>3. Diagnóstico AS-IS</h3>
+            <ul>
+              <li>45% das propostas chegam com divergência entre dados digitados e documentos anexados.</li>
+              <li>A integração Serasa/SCR pode deixar propostas paradas em “Aguardando Bureau”.</li>
+              <li>O status “Em Exigência” congela o SLA da análise, mas transfere dias de espera para a agência.</li>
+              <li>Operações fora da alçada automática dependem do Comitê, que se reúne apenas duas vezes por semana.</li>
+              <li>Condicionantes de garantia criam novo ciclo de negociação com o associado antes da formalização.</li>
+            </ul>
+          </div>
+
+          <div class="demo-panel">
+            <h3>4. TO-BE proposto</h3>
+            <ul>
+              <li>Adicionar agente de pré-validação documental antes do gerente enviar a proposta para análise.</li>
+              <li>Aplicar leitura automática de DRE, balanço, faturamento e assinatura do contador.</li>
+              <li>Criar fallback e fila monitorada para falhas de bureau, com retentativas automáticas.</li>
+              <li>Classificar exigências por causa raiz para reduzir retrabalho recorrente nas agências.</li>
+              <li>Antecipar minutas e checklist de garantia para propostas com alta probabilidade de aprovação.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="callout">
+          Resultado esperado do exemplo: menos retrabalho documental, menor dependência de ciclos presenciais de decisão,
+          mais rastreabilidade das exigências e um TO-BE orientado a automação inteligente da esteira de crédito PJ.
+        </div>
+      </section>
+
+      <section>
+        <span class="section-kicker">Stack</span>
+        <h2>Arquitetura e tecnologias</h2>
+        <p class="lead">
+          O projeto é uma aplicação full stack com frontend moderno, backend Python orientado a API, orquestração de agentes
+          e infraestrutura local via Docker Compose.
+        </p>
+
+        <div class="stack">
+          <div class="stack-card">
+            <h3>Frontend</h3>
+            <p>Interface web para criação, edição, visualização e exportação dos processos.</p>
+            <div class="tags">
+              <span class="tag">React 19</span>
+              <span class="tag">TypeScript</span>
+              <span class="tag">Vite</span>
+              <span class="tag">Tailwind CSS 4</span>
+              <span class="tag">React Flow</span>
+              <span class="tag">Lucide Icons</span>
+              <span class="tag">html-to-image</span>
+            </div>
+          </div>
+
+          <div class="stack-card">
+            <h3>Backend</h3>
+            <p>API, persistência, upload de arquivos, geração de documentos e exportação BPMN.</p>
+            <div class="tags">
+              <span class="tag">Python</span>
+              <span class="tag">FastAPI</span>
+              <span class="tag">Pydantic</span>
+              <span class="tag">SQLAlchemy</span>
+              <span class="tag">Uvicorn</span>
+              <span class="tag">python-docx</span>
+              <span class="tag">Pandas</span>
+            </div>
+          </div>
+
+          <div class="stack-card">
+            <h3>IA e Process Mining</h3>
+            <p>Geração do modelo, execução, validação, layout e interoperabilidade de processos.</p>
+            <div class="tags">
+              <span class="tag">LangGraph</span>
+              <span class="tag">LangChain</span>
+              <span class="tag">Gemini 2.5 Flash</span>
+              <span class="tag">GPT-4o</span>
+              <span class="tag">POWL</span>
+              <span class="tag">PM4Py</span>
+              <span class="tag">BPMN 2.0</span>
+            </div>
+          </div>
+
+          <div class="stack-card">
+            <h3>Dados</h3>
+            <p>Armazenamento de diagramas, usuários e cadastros de referência.</p>
+            <div class="tags">
+              <span class="tag">PostgreSQL 15</span>
+              <span class="tag">SQLite local</span>
+              <span class="tag">JSON de layout</span>
+              <span class="tag">Notas por atividade</span>
+            </div>
+          </div>
+
+          <div class="stack-card">
+            <h3>DevOps</h3>
+            <p>Ambiente reproduzível com serviços isolados para banco, API e frontend.</p>
+            <div class="tags">
+              <span class="tag">Docker</span>
+              <span class="tag">Docker Compose</span>
+              <span class="tag">Volumes</span>
+              <span class="tag">Healthcheck</span>
+              <span class="tag">Variáveis .env</span>
+            </div>
+          </div>
+
+          <div class="stack-card">
+            <h3>Contratos de API</h3>
+            <p>Endpoints REST para manter a aplicação modular e preparada para evolução.</p>
+            <div class="tags">
+              <span class="tag">/api/diagrams</span>
+              <span class="tag">/api/agents/chat</span>
+              <span class="tag">/api/upload-log</span>
+              <span class="tag">/api/export-bpmn</span>
+              <span class="tag">/api/export-word</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout">
+          A stack demonstra uma intenção clara: capturar conhecimento de processo de forma conversacional, manter um modelo
+          lógico estruturado por trás do desenho e entregar saídas compatíveis com documentação e ferramentas BPMN.
+        </div>
+      </section>
+
+      <section>
+        <span class="section-kicker">Como gera Valor</span>
+        <h2>Benefícios para operação, gestão e melhoria contínua</h2>
+        <div class="value-grid">
+          <div class="value-card">
+            <h3><span class="badge">A</span>Acelera o mapeamento de processos</h3>
+            <p>
+              A criação por descrição, entrevista ou histórico reduz o esforço inicial de levantar fluxos, permitindo que
+              o analista comece a partir de uma versão já estruturada.
+            </p>
+          </div>
+
+          <div class="value-card">
+            <h3><span class="badge">B</span>Padroniza conhecimento operacional</h3>
+            <p>
+              Atividades, áreas, sistemas, variáveis e anotações ficam registrados no mesmo artefato, reduzindo perda de
+              informação entre entrevistas, desenho, documentação e execução.
+            </p>
+          </div>
+
+          <div class="value-card">
+            <h3><span class="badge">C</span>Aumenta clareza de responsabilidades</h3>
+            <p>
+              As swimlanes evidenciam quem faz cada etapa, em qual área, com quais sistemas e documentos. Isso ajuda a
+              encontrar gargalos, sobreposições e pontos de transferência.
+            </p>
+          </div>
+
+          <div class="value-card">
+            <h3><span class="badge">D</span>Conecta descoberta e documentação</h3>
+            <p>
+              O mesmo fluxo que nasce no canvas gera documentos Word, imagens e BPMN, evitando retrabalho manual para
+              preparar materiais de comitê, auditoria, treinamento ou handoff.
+            </p>
+          </div>
+
+          <div class="value-card">
+            <h3><span class="badge">E</span>Cria base para melhoria AS-IS e TO-BE</h3>
+            <p>
+              A distinção entre processo atual e futuro favorece análises comparativas, identificação de oportunidades e
+              desenho de estados desejados com rastreabilidade.
+            </p>
+          </div>
+
+          <div class="value-card">
+            <h3><span class="badge">F</span>Favorece interoperabilidade</h3>
+            <p>
+              A exportação BPMN 2.0 permite levar o processo para ferramentas especializadas, enquanto o JSON preserva o
+              layout editável dentro da aplicação.
+            </p>
+          </div>
+
+          <div class="value-card">
+            <h3><span class="badge">G</span>Reduz dependência de especialistas em notação</h3>
+            <p>
+              O agente traduz linguagem natural em estrutura processual, ajudando pessoas de negócio a participar mais
+              cedo da modelagem sem exigir domínio prévio de POWL ou BPMN.
+            </p>
+          </div>
+
+          <div class="value-card">
+            <h3><span class="badge">H</span>Fortalece governança e reuso</h3>
+            <p>
+              A persistência de diagramas e cadastros transforma cada mapeamento em ativo reutilizável, versionável e
+              disponível para evolução contínua.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <span class="section-kicker">Síntese Executiva</span>
+        <h2>Por que o projeto importa</h2>
+        <p class="lead">
+          O TTCD Process Mining transforma a atividade de mapear processos em um fluxo mais rápido, visual e rastreável.
+          Ele une a capacidade analítica de agentes de IA com uma interface de edição BPMN e exportações corporativas. O
+          valor aparece na redução de tempo de levantamento, na melhoria da qualidade da documentação, na clareza das
+          responsabilidades e na criação de uma base viva para gestão por processos.
+        </p>
+      </section>
+
+      <footer>
+        Documento gerado a partir da análise local do projeto <strong>TTCD Process Mining</strong>. Preparado para visualização em navegador e impressão/exportação para PDF.
+      </footer>
+    </main>
+  </article>
+</body>
+</html>

@@ -38,6 +38,8 @@ def generate_bpmn_xml(title: str, react_flow_data: Dict[str, Any]) -> str:
 
     # Dictionaries to map ReactFlow types to BPMN types
     type_map = {
+        'start': 'startEvent',
+        'end': 'endEvent',
         'startEvent': 'startEvent',
         'endEvent': 'endEvent',
         'task': 'task',
@@ -47,6 +49,8 @@ def generate_bpmn_xml(title: str, react_flow_data: Dict[str, Any]) -> str:
 
     # Dimensions for BPMNDI
     dim_map = {
+        'start': (36, 36),
+        'end': (36, 36),
         'startEvent': (36, 36),
         'endEvent': (36, 36),
         'task': (100, 80),

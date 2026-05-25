@@ -49,11 +49,9 @@ function computeFixedSwimlanes(nodes: Node[], laneHeights: Record<string, number
 
   if (laneSet.size === 0) return [];
 
-  // Sort: group by pool, then by lane
-  const sortedLanes = Array.from(laneSet.values()).sort((a, b) => {
-    if (a.pool !== b.pool) return a.pool.localeCompare(b.pool);
-    return a.lane.localeCompare(b.lane);
-  });
+  // Preserve first appearance order; BPMN readability is better when lane order
+  // follows the discovered process instead of alphabetical sorting.
+  const sortedLanes = Array.from(laneSet.values());
 
   // Assign fixed Y bands
   const bands: LaneBand[] = [];
@@ -89,7 +87,7 @@ function snapNodesToLanes(nodes: Node[], bands: LaneBand[]): Node[] {
     bandMap.set(`${band.pool}::${band.lane}`, band);
   }
 
-  // Group nodes by lane to stagger them vertically within the lane
+  // Group nodes by lane to stagger newly created nodes vertically within the lane.
   const laneNodeCounts = new Map<string, number>();
 
   return nodes.map((node) => {
@@ -99,6 +97,18 @@ function snapNodesToLanes(nodes: Node[], bands: LaneBand[]): Node[] {
     const band = bandMap.get(key);
 
     if (!band) return node;
+
+    const nodeCenterY = node.position.y + 30;
+    const alreadyInsideLane = nodeCenterY >= band.yMin && nodeCenterY <= band.yMax;
+    if (alreadyInsideLane) {
+      return {
+        ...node,
+        position: {
+          x: node.position.x,
+          y: node.position.y,
+        },
+      };
+    }
 
     // Count how many nodes we've placed in this lane so far
     const count = laneNodeCounts.get(key) || 0;
@@ -134,7 +144,7 @@ export default function App() {
   const [notes, setNotes] = useState<Record<string, string>>({});
   
   // Layout spacing control
-  const [spacingMultiplier, setSpacingMultiplier] = useState<number>(220);
+  const [spacingMultiplier, setSpacingMultiplier] = useState<number>(300);
   const [laneHeights, setLaneHeights] = useState<Record<string, number>>({});
 
   // Loading States
@@ -188,7 +198,7 @@ export default function App() {
   useEffect(() => {
     setNodes((nds) => nds.map((n) => {
       // For legacy/manual nodes, calculate a rank based on their initial X if missing
-      const rank = typeof n.data?.rank === 'number' ? n.data.rank : (n.position.x - 80) / 220;
+      const rank = typeof n.data?.rank === 'number' ? n.data.rank : (n.position.x - 80) / 300;
       return {
         ...n,
         data: { ...n.data, rank }, // Save the rank so it scales consistently
@@ -586,7 +596,7 @@ export default function App() {
         label, 
         pool, 
         lane, 
-        rank: (nodes.length * 200 + 50 - 80) / 220, // Assign rank so slider works
+        rank: (nodes.length * 200 + 50 - 80) / 300, // Assign rank so slider works
         executionType: 'Manual',
         systems: [],
         variables: []

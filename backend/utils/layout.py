@@ -131,16 +131,22 @@ def layout_powl_model(powl_model, python_code: str, current_nodes: List[Dict[str
     # Gather all unique (pool, lane) pairs
     swimlanes_set = set((p, l) for p, l, _, _, _ in node_metadata.values())
     
-    # We want a stable order: pool first, then lanes
-    # Sort pools and lanes
-    pools = sorted(list(set(p for p, _ in swimlanes_set)))
-    pool_lanes = {p: [] for p in pools}
-    for p, l in sorted(list(swimlanes_set)):
-        pool_lanes[p].append(l)
+    # Preserve the order inferred from the process/code instead of sorting alphabetically.
+    # This follows BPMN readability guidance: lane order should help the flow, not fight it.
+    pools = []
+    pool_lanes = {}
+    for pool, lane, _, _, _ in node_metadata.values():
+        if (pool, lane) not in swimlanes_set:
+            continue
+        if pool not in pool_lanes:
+            pools.append(pool)
+            pool_lanes[pool] = []
+        if lane not in pool_lanes[pool]:
+            pool_lanes[pool].append(lane)
 
     # Assign vertical positions
     # Horizontal lane rows: each lane has a Y center and height.
-    lane_height = 160
+    lane_height = 220
     lane_positions = {} # Key: (pool, lane), Value: { 'y_center': float, 'y_min': float, 'y_max': float }
     
     current_y = 50
@@ -165,8 +171,29 @@ def layout_powl_model(powl_model, python_code: str, current_nodes: List[Dict[str
         # We can add space between pools if needed
         current_y += 40
 
-    # 7. Convert nodes to React Flow format using Topological Ranking (Grid Layout)
-    ranks = {}
+    # 7. Convert nodes to React Flow format using BPMN-style left-to-right ranking.
+    # Back/loop edges are excluded from ranking, otherwise loops push nodes to rank 100+
+    # and create spaghetti diagrams.
+    outgoing_by_node = {node: [] for node in bpmn_nodes}
+    for flow in bpmn_flows:
+        src = flow.get_source()
+        tgt = flow.get_target()
+        if src in outgoing_by_node and tgt in outgoing_by_node:
+            outgoing_by_node[src].append(flow)
+
+    cyclic_flows = set()
+    visit_state = {}
+
+    def detect_cycles(node):
+        visit_state[node] = 1
+        for flow in outgoing_by_node.get(node, []):
+            tgt = flow.get_target()
+            if tgt == node or visit_state.get(tgt) == 1:
+                cyclic_flows.add(flow)
+                continue
+            if visit_state.get(tgt, 0) == 0:
+                detect_cycles(tgt)
+        visit_state[node] = 2
     
     start_nodes = []
     for node in bpmn_nodes:
@@ -178,24 +205,30 @@ def layout_powl_model(powl_model, python_code: str, current_nodes: List[Dict[str
             in_edges = [f for f in bpmn_flows if f.get_target() == node]
             if not in_edges:
                 start_nodes.append(node)
-                
+
     for node in start_nodes:
-        ranks[node] = 0
-        
-    queue = [(n, 0) for n in start_nodes]
-    while queue:
-        curr, r = queue.pop(0)
-        out_flows = [f for f in bpmn_flows if f.get_source() == curr]
-        for flow in out_flows:
-            tgt = flow.get_target()
-            # Longest path for compact DAG layout, with loop protection
-            if ranks.get(tgt, -1) < r + 1 and r < 100:
-                ranks[tgt] = r + 1
-                queue.append((tgt, r + 1))
-                
+        if visit_state.get(node, 0) == 0:
+            detect_cycles(node)
     for node in bpmn_nodes:
-        if node not in ranks:
-            ranks[node] = 0
+        if visit_state.get(node, 0) == 0:
+            detect_cycles(node)
+
+    ranks = {node: 0 for node in bpmn_nodes}
+    queue = list(start_nodes)
+    queued = set(queue)
+    while queue:
+        curr = queue.pop(0)
+        queued.discard(curr)
+        for flow in outgoing_by_node.get(curr, []):
+            if flow in cyclic_flows:
+                continue
+            tgt = flow.get_target()
+            next_rank = ranks[curr] + 1
+            if ranks.get(tgt, 0) < next_rank:
+                ranks[tgt] = next_rank
+                if tgt not in queued:
+                    queue.append(tgt)
+                    queued.add(tgt)
             
     react_flow_nodes = []
     lane_nodes_by_x = {}
@@ -238,8 +271,8 @@ def layout_powl_model(powl_model, python_code: str, current_nodes: List[Dict[str
             node_id_final = node_id
 
         # Grid Coordinates
-        x = ranks[node] * 220 + 80
-        y = lane_positions[(pool, lane)]['y_center']
+        x = ranks[node] * 300 + 80
+        y = lane_positions[(pool, lane)]['y_center'] - 30
 
         key = (pool, lane)
         if key not in lane_nodes_by_x:
@@ -296,17 +329,22 @@ def layout_powl_model(powl_model, python_code: str, current_nodes: List[Dict[str
                 x_groups[x] = []
             x_groups[x].append(nid)
             
-        center_y = lane_positions[key]['y_center']
+        center_y = lane_positions[key]['y_center'] - 30
         for x, nids in x_groups.items():
             if len(nids) > 1:
                 for idx, nid in enumerate(nids):
-                    offset = (idx - (len(nids) - 1) / 2) * 80
+                    offset = (idx - (len(nids) - 1) / 2) * 95
                     for n in react_flow_nodes:
                         if n['id'] == nid:
                             n['position']['y'] = center_y + offset
 
     # 8. Convert edges/flows to React Flow format
     react_flow_edges = []
+    metadata_by_final_id = {}
+    for node_id, node in node_by_id.items():
+        final_id = node_to_id.get(node, node_id)
+        metadata_by_final_id[final_id] = node_metadata[node_id]
+
     for i, flow in enumerate(bpmn_flows):
         src = flow.get_source()
         tgt = flow.get_target()
@@ -318,22 +356,49 @@ def layout_powl_model(powl_model, python_code: str, current_nodes: List[Dict[str
             edge_id = f"edge_{i}"
             
             # Apply BPMN 2.0 rule: Sequence flow cannot cross pools. Use messageFlow.
-            src_pool = node_metadata[src_id][0]
-            tgt_pool = node_metadata[tgt_id][0]
+            src_pool = metadata_by_final_id[src_id][0]
+            tgt_pool = metadata_by_final_id[tgt_id][0]
             
             is_message_flow = src_pool != tgt_pool
-            edge_type = 'messageFlow' if is_message_flow else 'smoothstep'
-            stroke_color = '#94a3b8' if is_message_flow else '#64748b'
-            stroke_dash = '5 5' if is_message_flow else 'none'
+            is_backflow = (flow in cyclic_flows) or (ranks.get(src, 0) >= ranks.get(tgt, 0) and not is_message_flow)
+            edge_type = 'smoothstep'
+            stroke_color = '#94a3b8' if is_message_flow else ('#d97706' if is_backflow else '#64748b')
+            stroke_dash = '5 5' if (is_message_flow or is_backflow) else 'none'
+            label = getattr(flow, "get_name", lambda: "")() or None
             
-            react_flow_edges.append({
+            edge_data = {
                 'id': edge_id,
                 'source': src_id,
                 'target': tgt_id,
                 'type': edge_type,
-                'animated': not is_message_flow, # Message flows typically aren't animated like sequence flows
+                'animated': not is_message_flow and not is_backflow,
                 'style': {'stroke': stroke_color, 'strokeWidth': 2, 'strokeDasharray': stroke_dash}
-            })
+            }
+            if is_backflow:
+                edge_data.update({
+                    'sourceHandle': 's-bottom',
+                    'targetHandle': 't-left',
+                    'label': label or 'retorno',
+                    'labelStyle': {'fill': '#92400e', 'fontWeight': 700},
+                    'labelBgStyle': {'fill': '#fffbeb', 'fillOpacity': 0.95},
+                })
+            elif is_message_flow:
+                edge_data.update({
+                    'sourceHandle': 's-bottom',
+                    'targetHandle': 't-top',
+                    'label': label or 'mensagem',
+                    'labelStyle': {'fill': '#475569', 'fontWeight': 700},
+                    'labelBgStyle': {'fill': '#f8fafc', 'fillOpacity': 0.95},
+                })
+            else:
+                edge_data.update({
+                    'sourceHandle': 's-right',
+                    'targetHandle': 't-left',
+                })
+                if label:
+                    edge_data['label'] = label
+
+            react_flow_edges.append(edge_data)
 
     return {
         'nodes': react_flow_nodes,
